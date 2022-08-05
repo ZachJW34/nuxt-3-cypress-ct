@@ -1,0 +1,56 @@
+diff --git a/node_modules/@nuxt/webpack-builder/dist/index.mjs b/node_modules/@nuxt/webpack-builder/dist/index.mjs
+index ee1dd95..aa862c5 100644
+--- a/node_modules/@nuxt/webpack-builder/dist/index.mjs
++++ b/node_modules/@nuxt/webpack-builder/dist/index.mjs
+@@ -1007,7 +1007,7 @@ function serverPlugins(ctx) {
+   }
+ }
+ 
+-async function bundle(nuxt) {
++async function getWebpackConfigs(nuxt) {
+   registerVirtualModules();
+   const webpackConfigs = [client, ...nuxt.options.ssr ? [server] : []].map((preset) => {
+     const ctx = createWebpackConfigContext(nuxt);
+@@ -1015,8 +1015,7 @@ async function bundle(nuxt) {
+     return getWebpackConfig(ctx);
+   });
+   await nuxt.callHook("webpack:config", webpackConfigs);
+-  const mfs = nuxt.options.dev ? createMFS() : null;
+-  const compilers = webpackConfigs.map((config) => {
++  const modifiedConfigs = webpackConfigs.map((config) => {
+     config.plugins.push(DynamicBasePlugin.webpack({
+       sourcemap: nuxt.options.sourcemap,
+       globalPublicPath: "__webpack_public_path__"
+@@ -1024,13 +1023,24 @@ async function bundle(nuxt) {
+     config.plugins.push(composableKeysPlugin.webpack({
+       sourcemap: nuxt.options.sourcemap,
+       rootDir: nuxt.options.rootDir
+-    }));
++    }))
++    return config
++  })
++
++   
++  return modifiedConfigs
++}
++
++async function bundle(nuxt) {
++  const webpackConfigs = await getWebpackConfigs(nuxt)
++  const mfs = nuxt.options.dev ? createMFS() : null
++  const compilers = webpackConfigs.map((config) => {
+     const compiler = webpack(config);
+     if (nuxt.options.dev) {
+       compiler.outputFileSystem = mfs;
+     }
+     return compiler;
+-  });
++  })
+   nuxt.hook("close", async () => {
+     for (const compiler of compilers) {
+       await new Promise((resolve) => compiler.close(resolve));
+@@ -1117,4 +1127,4 @@ async function compile(compiler) {
+   await nuxt.callHook("build:resources");
+ }
+ 
+-export { bundle };
++export { bundle, getWebpackConfigs };

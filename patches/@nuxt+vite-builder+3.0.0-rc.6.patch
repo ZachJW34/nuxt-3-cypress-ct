@@ -1,0 +1,73 @@
+diff --git a/node_modules/@nuxt/vite-builder/dist/index.mjs b/node_modules/@nuxt/vite-builder/dist/index.mjs
+index c1e48cd..f889882 100644
+--- a/node_modules/@nuxt/vite-builder/dist/index.mjs
++++ b/node_modules/@nuxt/vite-builder/dist/index.mjs
+@@ -285,7 +285,7 @@ async function prepareDevServerEntry(ctx) {
+   await fse.writeFile(resolve(ctx.nuxt.options.buildDir, "dist/server/client.manifest.mjs"), `export { default } from ${JSON.stringify(pathToFileURL(manifestResolvedPath).href)}`);
+ }
+ 
+-async function buildClient(ctx) {
++function getViteClientConfig(ctx) {
+   const clientConfig = vite.mergeConfig(ctx.config, {
+     define: {
+       "process.server": false,
+@@ -323,9 +323,16 @@ async function buildClient(ctx) {
+       middlewareMode: true
+     }
+   });
++
+   if (ctx.nuxt.options.build.analyze) {
+     clientConfig.plugins.push(...analyzePlugin(ctx));
+   }
++
++  return clientConfig
++}
++
++async function buildClient(ctx) {
++  const clientConfig = getViteClientConfig(ctx)
+   await ctx.nuxt.callHook("vite:extendConfig", clientConfig, { isClient: true, isServer: false });
+   if (ctx.nuxt.options.dev) {
+     const viteServer = await vite.createServer(clientConfig);
+@@ -815,12 +822,14 @@ const composableKeysPlugin = createUnplugin((options = {}) => {
+   };
+ });
+ 
+-async function bundle(nuxt) {
++async function getCtx(nuxt) {
++
+   const hmrPortDefault = 24678;
+   const hmrPort = await getPort({
+     port: hmrPortDefault,
+     ports: Array.from({ length: 20 }, (_, i) => hmrPortDefault + 1 + i)
+   });
++
+   const ctx = {
+     nuxt,
+     config: vite.mergeConfig({
+@@ -878,11 +887,20 @@ async function bundle(nuxt) {
+       }
+     }, nuxt.options.vite)
+   };
++
+   if (!nuxt.options.dev) {
+     ctx.config.server.hmr = false;
+     ctx.config.server.watch = void 0;
+     ctx.config.build.watch = void 0;
+   }
++
++  return ctx
++}
++
++async function bundle(nuxt) {
++  // console.log({nuxt})
++  const ctx = await getCtx(nuxt)
++  
+   await nuxt.callHook("vite:extend", ctx);
+   nuxt.hook("vite:serverCreated", (server, env) => {
+     ctx.nuxt.hook("app:templatesGenerated", () => {
+@@ -899,4 +917,4 @@ async function bundle(nuxt) {
+   await buildServer(ctx);
+ }
+ 
+-export { bundle };
++export { bundle, getCtx, getViteClientConfig };
